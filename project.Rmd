@@ -1,0 +1,76 @@
+---
+title: "Machine Learning Project"
+author: "Luke Remy"
+date: "Saturday, March 21, 2015"
+output: html_document
+---
+This report details a model that is used to predict which version of an exercise participants completed.  The data and more information can be found [here](http://groupware.les.inf.puc-rio.br/har) (see citation below).  
+
+### Load required packages and data
+
+After setting your working directory, load the randomForest and caret packages.
+```{r load packages, message=FALSE, warning=FALSE}
+library(randomForest); library(caret)
+```
+
+Next, load the data and read it into R.
+```{r load data}
+# create URL shortcuts
+trainingURL <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+testingURL <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+# download csv files
+download.file(trainingURL,destfile="training_data.csv")
+download.file(testingURL,destfile="testing_data.csv")
+# read data into R
+train <- read.csv("training_data.csv",header=T,na.string=c("","#DIV/0!","NA"))
+test <- read.csv("testing_data.csv",na.string=c("","#DIV/0!","NA"))
+```
+
+### Clean data
+
+After briefly exploring the data (not included in this report), we can begin cleaning the data set.  First, we will remove the first seven variables, as they do not include relevant data for our prediction.  Next, we will remove all variables with more than five NA values, assuming that these variables will not add significant predictive value to our model.
+
+```{r clean data}
+# remove first 7 columns
+train <- train[,-(1:7)]
+test <- test[,-(1:7)]
+# remove all columns with > 5 NA values
+nopes <- apply(train,2,function(x) { sum(is.na(x))})
+train <- train[,nopes<5]
+test <- test[,nopes<5]
+```
+
+### Subset data and build model
+It would require a great length of time to build our model based on the entire "train" dataset.  We will subset 25% of the cases from that dataset with which to train our model, before applying the model to the actual "test" dataset.  
+
+```{r subset data}
+# create "testing" & "training" datasets out of train dataset 
+set.seed(30)
+intrain <- createDataPartition(y=train$classe,p=.75,list=FALSE)
+training <- train[intrain,]
+testing <- train[-intrain,]
+```
+
+Next, use randomForest() to create a prediction model, and apply that model to the testing dataset.  View the confusion matrix to check the accuracy of our model.  We're hoping to find a model that has at least ~95% accuracy, or put another way, less than 5% out of sample error rate.
+
+```{r model}
+# create model
+modelFit <- randomForest(classe~.,data=training)
+modelFit
+# view confusion matrix
+pred <- predict(modelFit,testing)
+rfMatrix <- confusionMatrix(pred, testing$classe)
+rfMatrix
+```
+
+### Run prediction model 
+
+In viewing the output from the confusion matrix above, we see that our model accuracy is currently `r round(rfMatrix$overall[[1]],4)*100`%, and our out of sample error rate is `r round((1 - rfMatrix$overall[[1]]),4)*100`%.  This is sufficiently high to apply to the actual test cases in the test dataset, using the predict() function below.  The output (hidden) will be submitted for grading on Coursera (_spoiler - all 20 predictions were correct!_).
+
+```{r run model,results='hide'}
+pred_test <- predict(modelFit,test)
+pred_test
+```
+
+
+_Data source_: Velloso, E.; Bulling, A.; Gellersen, H.; Ugulino, W.; Fuks, H. Qualitative Activity Recognition of Weight Lifting Exercises. Proceedings of 4th International Conference in Cooperation with SIGCHI (Augmented Human '13) . Stuttgart, Germany: ACM SIGCHI, 2013.
